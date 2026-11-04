@@ -1,3 +1,10 @@
 node_modules
 dist
 .DS_Store
+
+# Variáveis de ambiente
+.env
+.env.local
+.env.*.local
+!.env.example
+

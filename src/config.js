@@ -10,8 +10,8 @@ export const RADIO = {
 // quem protege os dados são as regras de segurança do banco (supabase/migrations).
 // Nunca coloque aqui a chave "secret" / "service_role".
 export const SUPABASE = {
-  url: import.meta.env.VITE_SUPABASE_URL ?? 'https://sxhwkkplxaotpxtgbzqe.supabase.co',
-  chave: import.meta.env.VITE_SUPABASE_KEY ?? 'sb_publishable_Ocm5QSHYmpePmtxRbdzcKw_TLa01x_7',
+  url: import.meta.env.VITE_SUPABASE_URL || 'https://sxhwkkplxaotpxtgbzqe.supabase.co',
+  chave: import.meta.env.VITE_SUPABASE_KEY || 'sb_publishable_Ocm5QSHYmpePmtxRbdzcKw_TLa01x_7',
 }
 
 // Formas de login exibidas na tela de entrada.
