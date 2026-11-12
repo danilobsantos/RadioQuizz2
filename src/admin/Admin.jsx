@@ -5,18 +5,20 @@ import {
 } from 'lucide-react'
 import { NIVEIS } from '../config.js'
 import { Carregando, TelaLogin, useAuth } from '../auth.jsx'
-import { comSegundos, diaMes, fmt, fmtHorario, hojeSP, segundosEntre, somarSegundos, useDados, useRanking } from '../store.jsx'
+import { comSegundos, diaMes, fmt, fmtHorario, hojeSP, horaFalada, horaSP, segundosEntre, somarSegundos, useDados, useRanking } from '../store.jsx'
 import { mensagemDeErro, supabase } from '../supabase.js'
 import { diferencaDoAparelhoMs, fmtFalta, fmtHora, instanteRodada, relogioSincronizado, useRelogio } from '../relogio.js'
 import { DetalheParticipacao, SeloSituacao, fmtDataHora, situacao } from '../historico.jsx'
 import { Avatar, CORES, Card, ICONES_PATROCINADOR, Icone, Selo, Vazio } from '../ui.jsx'
 import { Botao, Campo, Numero, Texto, enviarImagem, inputCls, reduzirFoto, useTabela } from './comum.jsx'
 import Patrocinadores from './Patrocinadores.jsx'
+import { ESPACOS } from '../anuncios.jsx'
 
 const ABAS = [
   { id: 'aovivo', grupo: 'Programa', nome: 'Ao vivo', icone: RadioTower, descricao: 'Solte as perguntas no ar e acompanhe as respostas em tempo real.', cor: 'bg-marca-100 text-marca-600' },
   { id: 'rodadas', grupo: 'Conteúdo', nome: 'Rodadas', icone: ListChecks, descricao: 'Perguntas, horários, pontos e agendamento de cada rodada.', cor: 'bg-violet-100 text-violet-600' },
-  { id: 'patrocinadores', grupo: 'Conteúdo', nome: 'Patrocinadores', icone: Megaphone, descricao: 'Anúncios simples, vídeos do YouTube ou montados automaticamente.', cor: 'bg-ouro-100 text-ouro-600' },
+  { id: 'patrocinadores', grupo: 'Conteúdo', nome: 'Patrocinadores', icone: Megaphone, descricao: 'Vídeos do YouTube e banners, com rodízio ou horário fixo e período de circulação.', cor: 'bg-ouro-100 text-ouro-600' },
+  { id: 'exibicoes', grupo: 'Conteúdo', nome: 'Exibições', icone: BarChart3, descricao: 'Quantas vezes cada patrocinador apareceu em cada espaço.', cor: 'bg-sky-100 text-sky-600' },
   { id: 'premios', grupo: 'Conteúdo', nome: 'Prêmios', icone: Gift, descricao: 'O que os primeiros colocados do ranking ganham.', cor: 'bg-emerald-100 text-emerald-600' },
   { id: 'ranking', grupo: 'Ouvintes', nome: 'Ranking', icone: Trophy, descricao: 'Classificação dos ouvintes pelos pontos.', cor: 'bg-ouro-100 text-ouro-600' },
   { id: 'cadastros', grupo: 'Ouvintes', nome: 'Cadastros', icone: Users, descricao: 'Ouvintes cadastrados: nome, e-mail, CPF e WhatsApp.', cor: 'bg-violet-100 text-violet-600' },
@@ -178,6 +180,7 @@ function Painel() {
           {aba === 'ranking' && <RankingAdmin />}
           {aba === 'historico' && <HistoricoAdmin />}
           {aba === 'cadastros' && <CadastrosAdmin />}
+          {aba === 'exibicoes' && <ExibicoesAdmin />}
           {aba === 'avisos' && <AvisosAdmin />}
           {aba === 'feedback' && <FeedbackAdmin />}
         </div>
@@ -441,6 +444,8 @@ function DiagnosticoAgendamento() {
 }
 
 function PlacarAoVivo({ rodada, respostas, conteudo, encerrar, ocupado }) {
+  const { patrocinadores } = useDados()
+  const nomePatrocinador = (id) => patrocinadores.find((p) => p.id === id)?.nome
   const abriram = respostas.length
   const responderam = respostas.filter((r) => r.respondida_em)
   const acertos = responderam.filter((r) => r.acertou).length
@@ -462,6 +467,12 @@ function PlacarAoVivo({ rodada, respostas, conteudo, encerrar, ocupado }) {
           <p className="text-sm text-slate-500">
             {rodada.nivel} • vale {fmt(rodada.pontos)} pts • {rodada.tempo_resposta}s para responder
           </p>
+          {(rodada.patrocinador_pergunta || rodada.patrocinador_resultado) && (
+            <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-600">
+              <Megaphone size={14} className="text-ouro-600" /> Anúncios: <b>{nomePatrocinador(rodada.patrocinador_pergunta) ?? '—'}</b> antes da pergunta e{' '}
+              <b>{nomePatrocinador(rodada.patrocinador_resultado) ?? '—'}</b> antes do resultado
+            </p>
+          )}
         </div>
         <Botao variante="perigo" onClick={encerrar} disabled={ocupado}>
           <Square size={14} /> Encerrar rodada
@@ -602,7 +613,7 @@ function sortearPontos(nivel) {
   return Math.round((min + Math.random() * (max - min)) * 100) / 100
 }
 
-const CAMPOS_RODADA = ['id', 'data', 'horario', 'horario_fim', 'modo', 'categoria', 'nivel', 'pontos', 'tempo_resposta']
+const CAMPOS_RODADA = ['id', 'data', 'horario', 'horario_fim', 'modo', 'categoria', 'nivel', 'pontos', 'tempo_resposta', 'patrocinador_fixo']
 const HORA = /^\d{2}:\d{2}(:\d{2})?$/
 
 /** Texto curto do agendamento: "Automático · 21/10 · 10:30 às 10:40" ou "Manual · 10:30". */
@@ -615,7 +626,6 @@ function agendaTexto(r) {
 }
 
 function validarRodada(r) {
-  if (!r.categoria?.trim()) return 'Preencha a categoria (o assunto da pergunta).'
   if (!r.pergunta.trim()) return 'Preencha a pergunta.'
   if (!r.alternativas.every((a) => a.trim())) return 'Preencha as quatro alternativas.'
   return validarAgenda(r)
@@ -676,6 +686,30 @@ function ImagemPergunta({ url, aoMudar }) {
   )
 }
 
+// As perguntas são diárias, a cada meia hora, a partir das 9h
+const PRIMEIRA_RODADA = '09:00:00'
+const INTERVALO_RODADAS_MIN = 30
+
+/** Próximo horário livre na grade (9h, 9h30, 10h…), de hoje em diante, com o mesmo tempo no ar da última rodada. */
+function proximaVaga(rodadas = []) {
+  const ocupados = new Set(rodadas.map((r) => `${r.data} ${comSegundos(r.horario)}`))
+  const ultima = [...rodadas].filter((r) => r.data && r.horario_fim).sort((a, b) => `${b.data}${b.horario}`.localeCompare(`${a.data}${a.horario}`))[0]
+  const noAr = ultima ? segundosEntre(comSegundos(ultima.horario), comSegundos(ultima.horario_fim)) : 45
+  const agora = horaSP()
+  let dia = hojeSP()
+  for (let d = 0; d < 60; d++) {
+    for (let m = 0; segundosEntre('00:00:00', PRIMEIRA_RODADA) + m * 60 < 24 * 3600; m += INTERVALO_RODADAS_MIN) {
+      const horario = somarSegundos(PRIMEIRA_RODADA, m * 60)
+      if (d === 0 && horario.slice(0, 5) <= agora) continue
+      if (!ocupados.has(`${dia} ${horario}`)) return { data: dia, horario, horario_fim: somarSegundos(horario, noAr > 0 ? noAr : 45) }
+    }
+    const amanha = new Date(`${dia}T12:00:00Z`)
+    amanha.setUTCDate(amanha.getUTCDate() + 1)
+    dia = amanha.toISOString().slice(0, 10)
+  }
+  return { data: hojeSP(), horario: PRIMEIRA_RODADA, horario_fim: somarSegundos(PRIMEIRA_RODADA, 45) }
+}
+
 function Rodadas() {
   const { itens, recarregar } = useTabela(() => supabase.from('rodadas').select('*, rodadas_conteudo(*)').order('data', { ascending: true, nullsFirst: true }).order('horario'))
   // Junta a parte pública e a secreta da rodada num único formulário.
@@ -697,9 +731,10 @@ function Rodadas() {
     rodada.data = rodada.data || null
     rodada.horario = comSegundos(rodada.horario)
     rodada.horario_fim = comSegundos(rodada.horario_fim) || null
-    // Sem campo de título: o nome da rodada (painel, histórico e notificações) é a categoria
-    rodada.categoria = rodada.categoria.trim()
-    rodada.titulo = rodada.categoria
+    rodada.patrocinador_fixo = rodada.patrocinador_fixo || null
+    // O nome da rodada (painel, histórico e notificações) é o horário: "Pergunta das 9h30"
+    rodada.categoria = ''
+    rodada.titulo = `Pergunta das ${horaFalada(rodada.horario)}`
     rodada.descricao = ''
     const { error } = await supabase.from('rodadas').upsert(rodada)
     if (error) throw error
@@ -717,10 +752,9 @@ function Rodadas() {
       salvar={salvar}
       novo={() => ({
         id: crypto.randomUUID(),
-        modo: 'manual',
-        data: hojeSP(),
-        horario: '14:00:00',
-        horario_fim: '14:00:45',
+        modo: 'automatico',
+        patrocinador_fixo: null,
+        ...proximaVaga(lista),
         categoria: '',
         titulo: '',
         descricao: '',
@@ -741,7 +775,7 @@ function Rodadas() {
             {r.data && <span className="block text-[10px] text-slate-500">{diaMes(r.data)}</span>}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">{r.categoria || r.titulo || 'Sem categoria'}</p>
+            <p className="truncate text-sm font-semibold">Pergunta das {horaFalada(r.horario)}</p>
             <p className="truncate text-xs text-slate-500">{agendaTexto(r)} • +{fmt(r.pontos)} pts</p>
           </div>
           {r.status === 'no_ar' ? <Selo>No ar</Selo> : r.modo === 'automatico' && <Selo cor="slate" className="normal-case">Auto</Selo>}
@@ -836,9 +870,6 @@ function Rodadas() {
             </div>
             <span className="mt-1 block text-[11px] text-slate-400">Use valores quebrados (ex.: 53,75) para evitar empates no ranking.</span>
           </div>
-          <Campo rotulo="Categoria (o assunto: o ouvinte vê “a próxima pergunta será sobre…”)" className="sm:col-span-6">
-            <Texto valor={r.categoria} onChange={(v) => set('categoria', v)} placeholder="ex.: Música popular brasileira" />
-          </Campo>
           <Campo rotulo="Pergunta (só aparece depois do anúncio)" className="sm:col-span-6">
             <Texto multilinha valor={r.pergunta} onChange={(v) => set('pergunta', v)} />
           </Campo>
@@ -870,14 +901,17 @@ function Premios() {
       tabela="premios"
       itens={itens}
       recarregar={recarregar}
-      novo={() => ({ id: crypto.randomUUID(), colocacao: (itens?.length ?? 0) + 1, titulo: '', oferecido_por: '' })}
+      novo={() => ({ id: crypto.randomUUID(), colocacao: (itens?.length ?? 0) + 1, titulo: '', oferecido_por: '', data_final: null })}
       validar={(p) => p.titulo.trim() && p.colocacao > 0}
       renderItem={(p) => (
         <div className="flex items-center gap-3">
           <span className="grid h-9 w-9 place-items-center rounded-lg bg-ouro-50 font-display text-sm text-ouro-600">{p.colocacao}º</span>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{p.titulo || 'Sem título'}</p>
-            <p className="truncate text-xs text-slate-500">{p.oferecido_por}</p>
+            <p className="truncate text-xs text-slate-500">
+              {p.oferecido_por}
+              {p.data_final ? ` · final em ${diaMes(p.data_final)}/${p.data_final.slice(0, 4)}` : ''}
+            </p>
           </div>
         </div>
       )}
@@ -889,7 +923,11 @@ function Premios() {
           <Campo rotulo="Prêmio" className="sm:col-span-3">
             <Texto valor={p.titulo} onChange={(v) => set('titulo', v)} />
           </Campo>
-          <Campo rotulo="Oferecido por" className="sm:col-span-4">
+          <Campo rotulo="Data da pergunta final" className="sm:col-span-2">
+            <input type="date" value={p.data_final ?? ''} onChange={(e) => set('data_final', e.target.value || null)} className={inputCls} />
+            <span className="mt-1 block text-[11px] text-slate-500">O ouvinte vê: "A pergunta final será dia 15/12/2026".</span>
+          </Campo>
+          <Campo rotulo="Oferecido por" className="sm:col-span-2">
             <select value={p.oferecido_por} onChange={(e) => set('oferecido_por', e.target.value)} className={inputCls}>
               <option value="">— Selecione um patrocinador —</option>
               {patrocinadores.map((pt) => (
@@ -943,6 +981,113 @@ function FeedbackAdmin() {
           {f.navegador && <p className="mt-1 truncate text-[11px] text-slate-400">{f.navegador}</p>}
         </div>
       ))}
+    </Card>
+  )
+}
+
+/* ---------- aba Exibições (relatório dos patrocinadores) ---------- */
+
+function ExibicoesAdmin() {
+  const hoje = hojeBR()
+  const [de, setDe] = useState(`${hoje.slice(0, 8)}01`)
+  const [ate, setAte] = useState(hoje)
+  const [itens, setItens] = useState(null)
+  const [erro, setErro] = useState('')
+  const [carregando, setCarregando] = useState(false)
+
+  const buscar = useCallback(async () => {
+    setCarregando(true)
+    setErro('')
+    const { data, error } = await supabase.rpc('relatorio_exibicoes', { p_de: de, p_ate: ate })
+    setCarregando(false)
+    if (error) return setErro(mensagemDeErro(error))
+    setItens(data)
+  }, [de, ate])
+
+  useEffect(() => {
+    buscar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // uma linha por patrocinador, uma coluna por espaço
+  const linhas = Object.values(
+    (itens ?? []).reduce((acc, i) => {
+      const l = (acc[i.patrocinador_id] ??= { nome: i.nome, total: 0, rodadas: 0 })
+      l[i.espaco] = Number(i.exibicoes)
+      l[`${i.espaco}_rodadas`] = Number(i.rodadas)
+      l.total += Number(i.exibicoes)
+      l.rodadas += Number(i.rodadas)
+      return acc
+    }, {}),
+  ).sort((a, b) => b.total - a.total)
+  const n = (v) => (v ?? 0).toLocaleString('pt-BR')
+
+  const exportar = () => {
+    const cab = ['Patrocinador', ...ESPACOS.map((e) => e.nome), 'Total de exibições', 'Rodadas (antes da pergunta)', 'Rodadas (antes do resultado)']
+    const corpo = linhas.map((l) => [l.nome, ...ESPACOS.map((e) => l[e.id] ?? 0), l.total, l.anuncio_pergunta_rodadas ?? 0, l.anuncio_resultado_rodadas ?? 0])
+    const csv = [cab, ...corpo].map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n')
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `exibicoes-patrocinadores-${de}-a-${ate}.csv`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
+  return (
+    <Card>
+      <div className="flex flex-wrap items-end gap-3 border-b border-slate-100 p-4">
+        <Campo rotulo="De">
+          <input type="date" value={de} onChange={(e) => setDe(e.target.value)} className={inputCls} />
+        </Campo>
+        <Campo rotulo="Até">
+          <input type="date" value={ate} onChange={(e) => setAte(e.target.value)} className={inputCls} />
+        </Campo>
+        <Botao onClick={buscar} disabled={carregando || !de || !ate}>
+          {carregando ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />} Ver período
+        </Botao>
+        <Botao variante="secundario" disabled={!linhas.length} onClick={exportar}>
+          <Download size={15} /> Exportar planilha
+        </Botao>
+      </div>
+      <p className="border-b border-slate-100 px-4 py-2 text-xs leading-relaxed text-slate-500">
+        <b>Exibições</b>: quantas vezes o anúncio ou banner apareceu na tela de um ouvinte. <b>Rodadas</b>: em quantas rodadas o
+        patrocinador foi o escolhido do anúncio (igual para todos os ouvintes da rodada).
+      </p>
+      {erro && <p className="p-4 text-sm text-red-600">{erro}</p>}
+      {!itens && !erro && <Carregando />}
+      {itens && linhas.length === 0 && <Vazio icone={BarChart3} titulo="Nenhuma exibição no período" texto="As exibições aparecem aqui conforme os ouvintes usam o app." className="m-4 shadow-none ring-0" />}
+      {linhas.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 text-left text-xs text-slate-500">
+                <th className="px-4 py-2 font-semibold">Patrocinador</th>
+                {ESPACOS.map((e) => (
+                  <th key={e.id} className="px-3 py-2 text-right font-semibold">
+                    {e.nome}
+                  </th>
+                ))}
+                <th className="px-4 py-2 text-right font-semibold">Total</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {linhas.map((l) => (
+                <tr key={l.nome}>
+                  <td className="px-4 py-2.5 font-semibold">{l.nome}</td>
+                  {ESPACOS.map((e) => (
+                    <td key={e.id} className="px-3 py-2.5 text-right tabular-nums">
+                      {n(l[e.id])}
+                      {e.id.startsWith('anuncio') && <span className="block text-[11px] text-slate-400">{n(l[`${e.id}_rodadas`])} rodada(s)</span>}
+                    </td>
+                  ))}
+                  <td className="px-4 py-2.5 text-right font-bold tabular-nums">{n(l.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </Card>
   )
 }

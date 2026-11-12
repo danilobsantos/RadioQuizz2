@@ -190,7 +190,7 @@ function PatrocinioEAvisos() {
   if (!patrocinadores.length) return <div className="overflow-hidden rounded-3xl ring-2 ring-slate-200">{avisos}</div>
   return (
     <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-2 ring-slate-200">
-      <BannerPatrocinadores patrocinadores={patrocinadores} className="h-44" />
+      <BannerPatrocinadores patrocinadores={patrocinadores} espaco="banner_inicio" className="aspect-video w-full" />
       {avisos}
     </div>
   )
@@ -317,11 +317,14 @@ function BotaoMenu({ icone: I, cor, titulo, detalhe, onClick }) {
 
 function Titulo({ voltar, children }) {
   return (
-    <div className="mb-4">
-      <button onClick={voltar} className="flex min-h-[48px] items-center gap-1 rounded-xl bg-white pl-2 pr-4 text-lg font-bold text-slate-800 ring-2 ring-slate-200">
-        <ChevronLeft size={24} /> Voltar
-      </button>
-      <h2 className="mt-4 text-3xl font-extrabold text-slate-900">{children}</h2>
+    <div className="fundo-marca -mx-4 -mt-4 mb-5 px-4 pb-5 pt-4 text-white">
+      <div className="flex items-center justify-between gap-3">
+        <button onClick={voltar} className="flex min-h-[48px] items-center gap-1 rounded-xl bg-white pl-2 pr-4 text-lg font-bold text-marca-800">
+          <ChevronLeft size={24} /> Voltar
+        </button>
+        <img src="/logo-difusora-branco.png" alt="Difusora 107,3 FM" className="h-10 w-auto" />
+      </div>
+      <h2 className="mt-4 text-3xl font-extrabold">{children}</h2>
     </div>
   )
 }
@@ -395,6 +398,9 @@ function Grade({ voltar }) {
   )
 }
 
+// '2026-12-15' → '15/12/2026'
+const dataBR = (d) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : '')
+
 function Premios({ voltar }) {
   const { premios } = useDados()
   return (
@@ -406,7 +412,12 @@ function Premios({ voltar }) {
             <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-ouro-100 text-2xl font-extrabold text-ouro-700">{p.colocacao}º</div>
             <div className="min-w-0">
               <p className="text-xl font-extrabold leading-snug text-slate-900">{p.titulo}</p>
-              <p className="text-base text-slate-700">Oferecido por {p.oferecido_por}</p>
+              {p.oferecido_por && <p className="text-base text-slate-700">Oferecido por {p.oferecido_por}</p>}
+              {p.data_final && (
+                <p className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-marca-50 px-3 py-1 text-base font-bold text-marca-800">
+                  <CalendarClock size={18} /> A pergunta final será dia {dataBR(p.data_final)}
+                </p>
+              )}
             </div>
           </Caixa>
         ))}
